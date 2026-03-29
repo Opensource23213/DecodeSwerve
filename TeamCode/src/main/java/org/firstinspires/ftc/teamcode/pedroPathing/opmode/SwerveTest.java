@@ -8,6 +8,7 @@ import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.IMU;
@@ -18,10 +19,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 @Config
 @TeleOp(name="SwerveTest", group="ABC Opmode")
 public class SwerveTest extends DecodeLibrary {
-    public static double fr_offset = 1050;
+    public static double fr_offset = -420;
     public static double fl_offset = 1410;
-    public static double rr_offset = 250;
-    public static double rl_offset = 230;
+    public static double rr_offset = 1000;
+    public static double rl_offset = 0;
     public static double p = .001, i = 0, d = .00004;
 
     public static double f = 0.1;
@@ -37,11 +38,21 @@ public class SwerveTest extends DecodeLibrary {
         RevHubOrientationOnRobot orientationOnRobot = new RevHubOrientationOnRobot(logoDirection, usbDirection);
         // Initialize the IMU with this mounting orientation
         imu.initialize(new IMU.Parameters(orientationOnRobot));
+        shooter.initialize();
+        intake = hardwareMap.get(DcMotorEx.class, "intake");
+        intake.setDirection(DcMotorSimple.Direction.REVERSE);
+        spindexer = hardwareMap.get(DcMotorEx.class, "spindexer");
+        spindexer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         imu.resetYaw();
         chassis.initialize();
     }
     @Override
     public void loop() {
+
+        intake.setPower(gamepad1.right_trigger);
+        spindexer.setPower(gamepad1.right_trigger);
+        shooter.shoot1.setVelocity(1700);
+        shooter.shoot2.setVelocity(1700);
         chassis.drive();
     }
     public class swerve_drive{

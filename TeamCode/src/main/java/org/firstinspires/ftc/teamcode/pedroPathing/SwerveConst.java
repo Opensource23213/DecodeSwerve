@@ -41,17 +41,18 @@ public class SwerveConst {
             .lateralZeroPowerAcceleration(-81)
             .centripetalScaling(.00001)
             .translationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.005, 0.01))
-            .headingPIDFCoefficients(new PIDFCoefficients(.7, 0, 0.04, 0))
-            .drivePIDFCoefficients(new FilteredPIDFCoefficients(.35, 0, 0.11, 0.06, 0))
+            .headingPIDFCoefficients(new PIDFCoefficients(.7, 0.0002, 0.1, 0.05))
+            .drivePIDFCoefficients(new FilteredPIDFCoefficients(.3, 0, 0.13, 0.06, 0.01))
             .automaticHoldEnd(false)
-            .mass(4);
+            .turnHeadingErrorThreshold(Math.toRadians(5))
+            .mass(12);
 
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 20, 2);
 
-    public static Follower createFollower(HardwareMap hardwareMap, Gamepad gamepad) {
+    public static Follower createFollower(HardwareMap hardwareMap, Gamepad gamepad, double color) {
 
         return new FollowerBuilder(followerConstants, hardwareMap)
-                .setDrivetrain(new SwervePedro(hardwareMap, driveConstants, gamepad))
+                .setDrivetrain(new SwervePedro(hardwareMap, driveConstants, gamepad, color))
                 .pinpointLocalizer(localizerConstants)
                 .pathConstraints(pathConstraints)
                 .build();

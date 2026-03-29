@@ -75,10 +75,10 @@ public class Tuning extends SelectableOpMode {
     @Override
     public void onSelect() {
         if (follower == null) {
-            follower = SwerveConst.createFollower(hardwareMap, gamepad1);
+            follower = SwerveConst.createFollower(hardwareMap, gamepad1, 0);
             PanelsConfigurables.INSTANCE.refreshClass(this);
         } else {
-            follower = SwerveConst.createFollower(hardwareMap, gamepad1);
+            follower = SwerveConst.createFollower(hardwareMap, gamepad1, 0);
         }
 
         follower.setStartingPose(new Pose());

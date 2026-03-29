@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.pedroPathing.opmode;
 
 import static java.lang.Math.abs;
+import static java.lang.Math.cos;
+import static java.lang.Math.sin;
 
 import com.acmerobotics.dashboard.config.Config;
 import com.arcrobotics.ftclib.controller.PIDController;
@@ -8,6 +10,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.AnalogInput;
@@ -20,10 +23,12 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.SwerveConst;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +37,8 @@ import java.util.List;
 //@Disabled
 public class DecodeLibrary extends OpMode {
     public static double color = 0;
+    public ElapsedTime slow = new ElapsedTime();
+    public ElapsedTime fast = new ElapsedTime();
     public double robot_x = 0;
     public double robot_y = 0;
     public double robot_heading = 0;
@@ -44,7 +51,6 @@ public class DecodeLibrary extends OpMode {
     public DcMotorEx spindexer;
     public static Pose auto_pose = new Pose();
     public static double tele_offset = 0;
-    public static double shoot_multiplier = 410;
 
     public List<Double> balls = new ArrayList<>();
     public static double pattern = 1;
@@ -53,62 +59,45 @@ public class DecodeLibrary extends OpMode {
     public static double robot_velocity_stop_shoot = 10;
     public double old_dis = 0;
     public DcMotorEx intake = null;
-    public spinny spinny = new spinny();
     public shooter shooter = new shooter();
     public turret turret = new turret();
     public sensors sensors = new sensors();
     public CameraCode cameraCode = new CameraCode();
     public static double adjust = 0.01;
-    public double flippy_up = 0.34;
-    public static double flippy_hold = .53;
-    public double  flippy_down = .71;
+    public static double flippy_up = 0.49;
+    public static double flippy_hold = .45;
+    public double  flippy_down = .29;
     public double flippy_pos = flippy_down;
     public Servo flippy = null;
     public static double sppeed = 0;
     public static double fllap = .04;
-    public Servo JamLight;
-    public Servo ShootLight;
     public static double shoot_offset = -4;
     public ElapsedTime flip_up = new ElapsedTime();
     public static double flap_minimum = .06;
     public static double shoot_power_offset = 1670;
+    public static double shoot_multiplier = 410;
+    /*
+    public static double shoot_power_offset = 1360;
+    public static double shoot_multiplier = 240;
+     */
     public boolean teleop = true;
     public double index_steps = 0;
-    public static double flap_switch = -70;
+    public static double flap_switch = -40;
     public static double flap_height = 0;
     public static double shot_time = 200;
-
+    public List<LynxModule> hubs = null;
     @Override
     public void init(){
         initialize();
     }
 
     public void initialize() {
-        if(teleop){
-            index_reverse = true;
-            if (color == 0) {
-                x_mod = 2;
-                y_mod = -15;
-            } else {
-                x_mod = -3;
-                y_mod = 3;
-            }
-        }else {
-            index_reverse = false;
-            if (color == 0) {
-                x_mod = 2;
-                y_mod = -12;
-            } else {
-                x_mod = -3;
-                y_mod = 3;
-            }
-        }
-        follower = Constants.createFollower(hardwareMap);
+        index_reverse = teleop;
+        x_mod = 3;
+        y_mod = -7;
+        follower = SwerveConst.createFollower(hardwareMap, gamepad1, color);
         intake = hardwareMap.get(DcMotorEx.class, "intake");
-        intake.setDirection(DcMotorSimple.Direction.REVERSE);
         flippy = hardwareMap.get(Servo.class, "flippy");
-        JamLight = hardwareMap.get(Servo.class, "JamLight");
-        ShootLight = hardwareMap.get(Servo.class, "ShootLight");
         spindexer = hardwareMap.get(DcMotorEx.class, "spindexer");
         spindexer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         if(!teleop) {
@@ -118,210 +107,28 @@ public class DecodeLibrary extends OpMode {
         shooter.initialize();
         turret.initialize();
         sensors.initialize();
+        follower.update();
+        hubs = hardwareMap.getAll(LynxModule.class);
+        for (LynxModule hub : hubs){
+            hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+        }
     }
 
     @Override
     public void loop() {
-
     }
-    public Button2 button2 = new Button2();
     public Button1 button1 = new Button1();
-    public class Button2{
-        List<String> button = new ArrayList<>();
-        List<String> nowbutton = new ArrayList<>();
-        List<String> lastbutton = new ArrayList<>();
-        String type = "";
-        public void button(){
-            if (gamepad2.a && !button.contains("a")) {
-                button.add("a");
-            }
-            if(gamepad2.b && !button.contains("b")){
-                button.add("b");
-            }
-            if (gamepad2.x && !button.contains("x")){
-                button.add("x");
-            }
-            if (gamepad2.y && !button.contains("y")){
-                button.add("y");
-            }
-            if (gamepad2.right_bumper && !button.contains("r1")){
-                button.add("r1");
-            }
-            if (gamepad2.left_bumper && !button.contains("l1")){
-                button.add("l1");
-            }
-            if (gamepad2.left_trigger > .4 && !button.contains("l2")){
-                button.add("l2");
-            }
-            if (gamepad2.right_trigger > .4 && !button.contains("r2")){
-                button.add("r2");
-            }
-            if (gamepad2.dpad_up && !button.contains("up")){
-                button.add("up");
-            }
-            if (gamepad2.dpad_down && !button.contains("down")){
-                button.add("down");
-            }
-            if (gamepad2.dpad_left && !button.contains("left")){
-                button.add("left");
-            }
-            if (gamepad2.dpad_right && !button.contains("right")){
-                button.add("right");
-            }
-            if (gamepad2.ps && !button.contains("ps")){
-                button.add("ps");
-            }
-            if (gamepad2.left_stick_button && !button.contains("l3")){
-                button.add("l3");
-            }
-            if (gamepad2.right_stick_button && !button.contains("r3")){
-                button.add("r3");
-            }
-            endbutton();
-            ButtonControl();
-            nowbutton.clear();
-        }
-        public void ButtonControl(){
-            if(nowbutton.contains("right")){
-                if(color == 0) {
-                    y_mod -= 1;
-                }else{
-                    y_mod += 1;
-                }
-            }else if(nowbutton.contains("left")){
-                if(color == 1) {
-                    y_mod -= 1;
-                }else{
-                    y_mod += 1;
-                }
-            }
-            if(nowbutton.contains("up")){
-                shoot_power_offset += 10;
-            }else if(nowbutton.contains("down")){
-                shoot_power_offset -= 10;
-            }
-        }
-        public void endbutton(){
-            if (!gamepad2.a && button.contains("a")) {
-                button.remove("a");
-                nowbutton.add("a");
-            }
-            if(!gamepad2.b && button.contains("b")){
-                button.remove("b");
-                nowbutton.add("b");
-            }
-            if (!gamepad2.x && button.contains("x")){
-                button.remove("x");
-                nowbutton.add("x");
-            }
-            if (!gamepad2.y && button.contains("y")){
-                button.remove("y");
-                nowbutton.add("y");
-            }
-            if (!gamepad2.right_bumper && button.contains("r1")){
-                button.remove("r1");
-                nowbutton.add("r1");
-            }
-            if (!gamepad2.left_bumper && button.contains("l1")){
-                button.remove("l1");
-                nowbutton.add("l1");
-            }
-            if (!(gamepad2.left_trigger > .4) && button.contains("l2")){
-                button.remove("l2");
-                nowbutton.add("l2");
-            }
-            if (!(gamepad2.right_trigger > .4) && button.contains("r2")){
-                button.remove("r2");
-                nowbutton.add("r2");
-            }
-            if (!gamepad2.dpad_up && button.contains("up")){
-                button.remove("up");
-                nowbutton.add("up");
-            }
-            if (!gamepad2.dpad_down && button.contains("down")){
-                button.remove("down");
-                nowbutton.add("down");
-            }
-            if (!gamepad2.dpad_left && button.contains("left")){
-                button.remove("left");
-                nowbutton.add("left");
-            }
-            if (!gamepad2.dpad_right && button.contains("right")){
-                button.remove("right");
-                nowbutton.add("right");
-            }
-            if (!gamepad2.ps && button.contains("ps")){
-                button.remove("ps");
-                nowbutton.add("ps");
-            }
-            if (!gamepad2.left_stick_button && button.contains("l3")){
-                button.remove("l3");
-                nowbutton.add("l3");
-            }
-            if (!gamepad2.right_stick_button && button.contains("r3")){
-                button.remove("r3");
-                nowbutton.add("r3");
-            }
-        }
-    }
     public class Button1{
         List<String> button = new ArrayList<>();
         List<String> nowbutton = new ArrayList<>();
         List<String> lastbutton = new ArrayList<>();
         String type = "";
         public void button(){
-            if (gamepad1.a && !button.contains("a")) {
-                button.add("a");
-            }
-            if(gamepad1.b && !button.contains("b")){
-                button.add("b");
-            }
-            if (gamepad1.x && !button.contains("x")){
-                button.add("x");
-            }
-            if (gamepad1.y && !button.contains("y")){
-                button.add("y");
-            }
-            if (gamepad1.right_bumper && !button.contains("r1")){
-                button.add("r1");
-            }
-            if (gamepad1.left_bumper && !button.contains("l1")){
-                button.add("l1");
-            }
-            if (gamepad1.left_trigger > .4 && !button.contains("l2")){
-                button.add("l2");
-            }
-            if (gamepad1.right_trigger > .4 && !button.contains("r2")){
-                button.add("r2");
-            }
-            if (gamepad1.dpad_up && !button.contains("up")){
-                button.add("up");
-            }
-            if (gamepad1.dpad_down && !button.contains("down")){
-                button.add("down");
-            }
-            if (gamepad1.dpad_left && !button.contains("left")){
-                button.add("left");
-            }
-            if (gamepad1.dpad_right && !button.contains("right")){
-                button.add("right");
-            }
-            if (gamepad1.ps && !button.contains("ps")){
-                button.add("ps");
-            }
-            if (gamepad1.left_stick_button && !button.contains("l3")){
-                button.add("l3");
-            }
-            if (gamepad1.right_stick_button && !button.contains("r3")){
-                button.add("r3");
-            }
-            endbutton();
             ButtonControl();
-            nowbutton.clear();
         }
         public void ButtonControl(){
 
-            if(nowbutton.contains("l1")) {
+            if(gamepad1.leftBumperWasReleased()) {
                 balls.clear();
                 balls.add(1.0);
                 balls.add(2.0);
@@ -330,241 +137,77 @@ public class DecodeLibrary extends OpMode {
             if(gamepad2.touchpadWasPressed()){
                 manual_turret = true;
             }
-            shooter.speed = shoot_multiplier * ((dead_distance * .0254) - 1.6) + shoot_power_offset;
 
             if(gamepad1.a){
                 intake.setPower(0);
             }
-            if(nowbutton.contains("right")){
+            if(gamepad1.dpadRightWasReleased() || gamepad2.dpadRightWasReleased()){
                 if(color == 0) {
                     y_mod -= 1;
                 }else{
                     y_mod += 1;
                 }
-            }else if(nowbutton.contains("left")){
+            }else if(gamepad1.dpadLeftWasReleased() || gamepad2.dpadLeftWasReleased()){
                 if(color == 1) {
                     y_mod -= 1;
                 }else{
                     y_mod += 1;
                 }
             }
-            if(nowbutton.contains("up")){
+            if(gamepad1.dpadUpWasReleased() || gamepad2.dpadUpWasReleased()){
                 x_mod += 1;
-            }else if(nowbutton.contains("down")){
+            }else if(gamepad1.dpadDownWasReleased() || gamepad2.dpadDownWasReleased()){
                 x_mod -= 1;
             }
-            if(nowbutton.contains("r1")){
-                if(spin_speed == 1){
-                    spin_speed = .6;
-                }else{
-                    spin_speed = 1;
-                }
-            }
 
 
         }
-        public void endbutton(){
-            if (!gamepad1.a && button.contains("a")) {
-                button.remove("a");
-                nowbutton.add("a");
-            }
-            if(!gamepad1.b && button.contains("b")){
-                button.remove("b");
-                nowbutton.add("b");
-            }
-            if (!gamepad1.x && button.contains("x")){
-                button.remove("x");
-                nowbutton.add("x");
-            }
-            if (!gamepad1.y && button.contains("y")){
-                button.remove("y");
-                nowbutton.add("y");
-            }
-            if (!gamepad1.right_bumper && button.contains("r1")){
-                button.remove("r1");
-                nowbutton.add("r1");
-            }
-            if (!gamepad1.left_bumper && button.contains("l1")){
-                button.remove("l1");
-                nowbutton.add("l1");
-            }
-            if (!(gamepad1.left_trigger > .4) && button.contains("l2")){
-                button.remove("l2");
-                nowbutton.add("l2");
-            }
-            if (!(gamepad1.right_trigger > .4) && button.contains("r2")){
-                button.remove("r2");
-                nowbutton.add("r2");
-            }
-            if (!gamepad1.dpad_up && button.contains("up")){
-                button.remove("up");
-                nowbutton.add("up");
-            }
-            if (!gamepad1.dpad_down && button.contains("down")){
-                button.remove("down");
-                nowbutton.add("down");
-            }
-            if (!gamepad1.dpad_left && button.contains("left")){
-                button.remove("left");
-                nowbutton.add("left");
-            }
-            if (!gamepad1.dpad_right && button.contains("right")){
-                button.remove("right");
-                nowbutton.add("right");
-            }
-            if (!gamepad1.ps && button.contains("ps")){
-                button.remove("ps");
-                nowbutton.add("ps");
-            }
-            if (!gamepad1.left_stick_button && button.contains("l3")){
-                button.remove("l3");
-                nowbutton.add("l3");
-            }
-            if (!gamepad1.right_stick_button && button.contains("r3")){
-                button.remove("r3");
-                nowbutton.add("r3");
-            }
-        }
+
     }
 
 
-    public double power_level = 1;
-    //public Follower follower;
-    public DcMotorEx front_left = null;
-    public DcMotorEx rear_left = null;
-    public DcMotorEx front_right = null;
-    public DcMotorEx rear_right = null;
     public boolean robot_going_forward = true;
     public Follower follower;
-    public double currentfr = 0;
-    public double currentfl = 0;
-    public double currentrr = 0;
-    public double currentrl = 0;
-    public void drive_init_auto(){
-        front_left = hardwareMap.get(DcMotorEx.class, "leftFront");
-        front_right = hardwareMap.get(DcMotorEx.class, "rightFront");
-        rear_left = hardwareMap.get(DcMotorEx.class, "leftRear");
-        rear_right = hardwareMap.get(DcMotorEx.class, "rightRear");
-    }
-    public void drive_init(){
-        front_left = hardwareMap.get(DcMotorEx.class, "leftFront");
-        front_right = hardwareMap.get(DcMotorEx.class, "rightFront");
-        rear_left = hardwareMap.get(DcMotorEx.class, "leftRear");
-        rear_right = hardwareMap.get(DcMotorEx.class, "rightRear");
-        front_left.setDirection(DcMotor.Direction.REVERSE);
-        front_right.setDirection(DcMotor.Direction.FORWARD);
-        rear_left.setDirection(DcMotor.Direction.REVERSE);
-        rear_right.setDirection(DcMotor.Direction.FORWARD);
-        front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        rear_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        rear_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-    }
-    public void current_check(){
-        if(front_right.getCurrent(CurrentUnit.AMPS)> currentfr){
-            currentfr = front_right.getCurrent(CurrentUnit.AMPS);
-        }
-        if(front_left.getCurrent(CurrentUnit.AMPS)> currentfl){
-            currentfl = front_left.getCurrent(CurrentUnit.AMPS);
-        }
-        if(rear_right.getCurrent(CurrentUnit.AMPS)> currentrr){
-            currentrr = rear_right.getCurrent(CurrentUnit.AMPS);
-        }
-        if(rear_left.getCurrent(CurrentUnit.AMPS)> currentrl){
-            currentrl = rear_left.getCurrent(CurrentUnit.AMPS);
-        }
-    }
     public boolean freeze = false;
-    public double leftFrontPower = 0;
-    public double rightFrontPower = 0;
-    public double leftBackPower = 0;
-    public double rightBackPower = 0;
-    public void drive(){
-        follower.update();
-        Pose poseEstimate = follower.getPose();
-        double angle = poseEstimate.getHeading() + Math.toRadians(angle_offset);
-        double axial = 0;
-        double lateral = 0;
-        double yaw = 0; // set control to the sticks
-        axial = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
-        lateral = gamepad1.left_stick_x;
-        yaw = gamepad1.right_stick_x;
-
-
-        if (gamepad1.ps) {
-            telemetry.addData("Yaw", "Resetting\n");
-            if(color == 0){
-                y_mod = -12;
-                x_mod = 2;
-                follower.setPose(new Pose(0, -77, 0));
+    public static double turn_divider = 2;
+    public boolean start = false;
+    double times = 0;
+    boolean back = false;
+    public static double amps = 2000;
+    public static double loop_time = 100;
+    public void teleop_loop(){
+        if(start){
+            for(LynxModule hub : hubs){
+                hub.clearBulkCache();
+            }
+            follower.update();
+            double[] doubles = new double[0];
+            if(gamepad1.left_trigger < .4  || sensors.last_time()) {
+                freeze = false;
             }else{
-                y_mod = 3;
-                x_mod = -3;
-                follower.setPose(new Pose(0, 77, 0));
+                follower.drivetrain.setYVelocity(0);
+                freeze = true;
             }
 
+
+
+            sensors.sense();
+            button1.button();
+            fast.reset();
+            if(gamepad1.ps){
+                follower.setPose(new Pose());
+            }
+            turret.turret_move();
+            telemetry.addData("angle", Math.toDegrees(location.getHeading()));
+            shooter.speed = shoot_multiplier * ((dead_distance * .0254) - 1.6) + shoot_power_offset;
+            shooter.shooting();
+            flippy.setPosition(flippy_pos);
+            slow.reset();
+
+        }else if(!gamepad1.atRest()){
+            start = true;
         }
-
-        //elbow1.setPosition(servo1pose);
-        //elbow2.setPosition(servo2pose);
-
-
-        // If the sticks are being used
-
-        double yaw_rad = /*orientation.getYaw(AngleUnit.RADIANS)*/angle + 3.14159 / 2;
-        double temp = axial * Math.sin(yaw_rad) + lateral * Math.cos(yaw_rad);
-        lateral = -axial * Math.cos(yaw_rad) + lateral * Math.sin(yaw_rad);
-        //double temp = axial * Math.cos(yaw_rad) + lateral * Math.sin(yaw_rad);
-        //lateral = -axial * Math.sin(yaw_rad) + lateral * Math.cos(yaw_rad);
-        axial = temp;
-
-        // Combie the joystick requests for each axis-motion to determine each wheel's power.
-        // Set up a variable for each drive wheel to save the power level for telemetry.
-
-        leftFrontPower = (axial + lateral + yaw) * power_level;
-        rightFrontPower = (axial - lateral - yaw) * power_level;
-        leftBackPower = (axial - lateral + yaw) * power_level;
-        rightBackPower = (axial + lateral - yaw) * power_level;
-        // Normalize the values so no wheel power exceeds 00%
-        // This ensures that the robot maintains the desired motion.
-        double max = Math.max(abs(leftFrontPower), abs(rightFrontPower));
-        max = Math.max(max, abs(leftBackPower));
-        max = Math.max(max, abs(rightBackPower));
-        if (max > 1.0) {
-            leftFrontPower /= max;
-            rightFrontPower /= max;
-            leftBackPower /= max;
-            rightBackPower /= max;
-        }//Arm code Shoulder
-        if(gamepad1.left_trigger < .4 || sensors.last_time()) {
-            if(freeze){
-                follower.breakFollowing();
-            }
-            front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            rear_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            rear_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            front_left.setPower(leftFrontPower);
-            front_right.setPower(rightFrontPower);
-            rear_left.setPower(leftBackPower);
-            rear_right.setPower(rightBackPower);
-            freeze = false;
-        }else{
-            if(!sensors.start_shoot){
-                front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                rear_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                rear_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                front_left.setPower(0);
-                front_right.setPower(0);
-                rear_left.setPower(0);
-                rear_right.setPower(0);
-            }
-            freeze = true;
-        }
-
-
     }
     public class CameraCode{
         public Limelight3A limelight;
@@ -591,7 +234,6 @@ public class DecodeLibrary extends OpMode {
             }else{
                 limelight.pipelineSwitch(5);
             }
-            telemetry.setMsTransmissionInterval(11);
             limelight.start();
         }
 
@@ -606,14 +248,14 @@ public class DecodeLibrary extends OpMode {
                 double other_angle = Math.toRadians(botpose.getOrientation().getPitch());
                 angle = other_angle  - Math.atan(x/y);
                 distance_from_target = Math.sqrt(r*r + tag_to_target_distance * tag_to_target_distance - 2 * r * tag_to_target_distance * Math.cos(B));
-                angle_from_target = Math.toDegrees(Math.asin((r * Math.sin(B)) / distance_from_target));
+                angle_from_target = Math.toDegrees(Math.asin((r * sin(B)) / distance_from_target));
                 robot_angle = 41 -  angle_from_target;
 
                 robot_x = distance_from_target * Math.cos(Math.toRadians(robot_angle)) - 6 * feet;
-                robot_y = 6 * feet - distance_from_target * Math.sin(Math.toRadians(robot_angle));
+                robot_y = 6 * feet - distance_from_target * sin(Math.toRadians(robot_angle));
                 if(result.getFiducialResults().get(0).getFiducialId() == 24){
                     robot_y = (distance_from_target * Math.cos(Math.toRadians(robot_angle)) - 6 * feet) * -1;
-                    robot_x = 6 * feet - distance_from_target * Math.sin(Math.toRadians(robot_angle));
+                    robot_x = 6 * feet - distance_from_target * sin(Math.toRadians(robot_angle));
                 }
                 //robot_auto_on = ((robot_y >= robot_x && robot_y >= -robot_x && robot_y >= 0) || (abs(robot_y) * -1 <= robot_x - .8 && abs(robot_y) * -1 <= -robot_x - .8 && abs(robot_y) * -1 <= -.8)) && abs(follower.getVelocity().getMagnitude()) < robot_velocity_stop_shoot && gamepad1.right_trigger < .4 && turret.shootable;
             }else{
@@ -621,6 +263,7 @@ public class DecodeLibrary extends OpMode {
             }
         }
     }
+    public static double close_flap = .23;
     public class shooter{
         public Servo flap;
         public DcMotorEx shoot1;
@@ -634,7 +277,7 @@ public class DecodeLibrary extends OpMode {
         public double calc_rpm = 0;
         public double flap_velocity = 0;
         public double old_velocity = 0;
-        public double last_shot = 850;
+        public double last_shot = 1600;
         public boolean far_shooting = false;
         public void initialize(){
             flap = hardwareMap.get(Servo.class, "flap");
@@ -647,7 +290,7 @@ public class DecodeLibrary extends OpMode {
             shoot1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
         public void shooting() {
-            if (follower.getPose().getX() < 48 && teleop) {
+            if (follower.getPose().getX() < 44 && teleop) {
                 /*speed = speed_far;
                 position = .6;
                 far_shooting = true;*/
@@ -656,7 +299,7 @@ public class DecodeLibrary extends OpMode {
             } else if (teleop) {
                 far_shooting = false;
                 if (dead_distance * .0254 < moving_offset) {
-                    position = .1;
+                    position = close_flap;
                     speed += flap_switch;
                 } else {
                     position = flap_height;
@@ -665,158 +308,78 @@ public class DecodeLibrary extends OpMode {
             shoot2.setVelocity(speed);
             shoot1.setVelocity(speed);
             speed_difference = abs(shoot1.getVelocity() - speed);
-            if (speed_difference <= 20) {
-                ShootLight.setPosition(1);
-            } else {
-                ShootLight.setPosition(0);
-            }
-            flap.setPosition(position + (speed_difference) / 100 * adjust);
-        }
-    }
-    public class spinny{
-        public double position = 1;
-        public double turns = 0;
-        public double spinny_at = 0;
-        public PIDController controller;
-
-        public double p = 0.00031, i = 0, d = 0.00002;
-
-        public double f = 0;
-        public CRServo spinny = null;
-        public CRServo spinny2 = null;
-        public AnalogInput spinnypos = null;
-        public ElapsedTime time = new ElapsedTime();
-        public double yo;
-        public double spin_pos;
-        public double target;
-        public double speed = 0;
-        public double old_speed = 0;
-        public boolean jammed = false;
-        public boolean moving = false;
-        public double power = 0;
-        public boolean switchwaspressed = false;
-        public boolean going_forward = true;
-        public ElapsedTime flipoffset;
-        public void initialize(){
-            controller = new PIDController(p, i, d);
-            flipoffset = new ElapsedTime();
-            spinny = hardwareMap.get(CRServo.class, "spinny");
-            spinny2 = hardwareMap.get(CRServo.class, "spinny2");
-            spinnypos = hardwareMap.get(AnalogInput.class, "spinnypos");
-            time.reset();
-        }
-        public void spin(){
-            if(teleop) {
-                double temp = position;
-                if (!robot_going_forward) {
-                    temp -= 1;
-                    if (temp < 1) {
-                        temp = 3;
-                    }
-                }
-                if (balls.contains(temp) && balls.size() < 3) {
-                    position -= 1;
-                    if (position < 1) {
-                        position = 3;
-                    }
-                }
-            }
-            if(balls.size() == 3){
-                JamLight.setPosition(0);
+            if(dead_distance * .0254 < moving_offset) {
+                flap.setPosition(position);
             }else{
-                JamLight.setPosition(1);
+                flap.setPosition(position + (speed_difference) / 100 * adjust);
             }
-
-            yo = abs(spinnypos.getVoltage() / 3.3) * 4800;
-            if(time.milliseconds() > 20){
-                speed = abs(yo - old_speed);
-                old_speed = yo + 0;
-                time.reset();
-            }
-
-            if(abs(yo - spinny_at) > 2200){
-                if(spinny_at < yo){
-                    turns += 1;
-                }else{
-                    turns -= 1;
-                }
-            }
-            if(turns >= 3 || turns <= -3){
-                turns = 0;
-            }
-
-            spinny_at = yo + 0;
-            spin_pos = spinny_at - turns * 1200;
-            if(spin_pos > 3600){
-                spin_pos -= 3600;
-            }else if(spin_pos < 0){
-                spin_pos += 3600;
-            }
-            if(!robot_going_forward && flippy_pos == flippy_down) {
-                if(going_forward) {
-                    going_forward = false;
-                    position -= 1;
-                    if (position < 1){
-                        position = 3;
-                    }
-                }
-                target = (position + .5) * 1200 + 400;
-            }else if(flippy_pos == flippy_down){
-                if(!going_forward) {
-                    going_forward = true;
-                }
-                target = position * 1200 + 400;
-            }
-            if(target - spin_pos > 1800){
-                target -= 3600;
-            }
-            controller.setPID(p, i, d);
-            double pid = controller.calculate(spin_pos, target);
-            double ff = Math.cos(Math.toRadians(target)) * f;
-            power = pid + ff;
-            if(power > .2){
-                power *= -1;
-            }
-            if(abs(power) > .2 && !jammed && moving && speed < 1){
-                if(position != 0) {
-                    position -= 1;
-                    if (position < 1) {
-                        position = 3;
-                    }
-                }
-                jammed = true;
-            }
-            else if(abs(power) > .2 && speed > 60){
-                moving = true;
-            }else if(abs(power) < .05){
-                moving = false;
-            }
-            if(abs(spin_pos - target) < 200 && !moving){
-                jammed = false;
-            }
-            /*if(!intakeswitch1.getState() || !intakeswitch2.getState()){
-                switchwaspressed = true;
-            }*/if(gamepad1.right_trigger > .4 && gamepad1.left_trigger > .4){
-                power = 1;
-            }else if(position == 0 || (gamepad1.left_trigger > .4 && flippy_pos == flippy_up)){
-                balls.clear();
-                if((teleop && flip_up.milliseconds() > 100) || (flip_up.milliseconds() > 200)) {
-                    if(power == -1){
-                        power = -.999;
-                    }else {
-                        power = -1;
-                    }
-                }
-                //intake.setPower(1);
-
-            }else if(position == 4){
-                power = 0;
-            }
-            spinny.setPower(-power);
-            spinny2.setPower(-power);
-
         }
     }
+    /*public static double Aclose_dis = 1.3;
+    public static double Amid_dis = 2.4;
+    public static double Afar_pos = 0;
+    public static double Aclose_pos = .07;
+    public static double Amid_pos = .016;
+    public static double Aclose_shot_change = 50;
+    public static double Amid_shot_change = 0;
+    public static double Afar_shot_change = 200;
+    public static double Auto_power = 1360;
+    public static double Auto_angle = .02;
+    public class shooter{
+        public Servo flap;
+        public DcMotorEx shoot1;
+        public DcMotorEx shoot2;
+        public double speed = 0;
+        public double position = 0.04;
+        public double speed_difference = 0;
+        public double max_draw1 = 0;
+        public double max_draw2 = 0;
+        public double calc_velocity = 0;
+        public double calc_rpm = 0;
+        public double flap_velocity = 0;
+        public double old_velocity = 0;
+        public double last_shot = 0;
+        public boolean far_shooting = false;
+        public double shot_change = 0;
+        public double rounded_speed = speed;
+        public double speed_correct = 0;
+
+        public void initialize(){
+            flap = hardwareMap.get(Servo.class, "flap");
+            shoot2 = hardwareMap.get(DcMotorEx.class, "shoot2");
+            shoot1 = hardwareMap.get(DcMotorEx.class, "shoot1");
+            PIDFCoefficients pidf = new PIDFCoefficients(150, 1, .001, 7);
+            shoot2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
+            shoot1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
+            shoot2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            shoot1.setDirection(DcMotorSimple.Direction.REVERSE);
+            shoot1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        }
+        public void shooting() {
+             if(dead_distance * .0254 < Aclose_dis){
+                position = Aclose_pos;
+                shot_change = Aclose_shot_change;
+            }else if(dead_distance * .0254 > Amid_dis){
+                 position = Afar_pos;
+                 shot_change = Afar_shot_change;
+            }else{
+                 position = Amid_pos;
+                 shot_change = 0;
+            }
+            if(!teleop){
+                position = Auto_angle;
+                speed = Auto_power;
+                shot_change = 0;
+            }
+            rounded_speed = Math.round(speed / 20) * 20 + shot_change;
+            shoot2.setVelocity(rounded_speed);
+            shoot1.setVelocity(rounded_speed);
+            telemetry.addData("velocity", shoot1.getVelocity());
+            flap.setPosition(position + .02);
+        }
+    }*/
+
+
     public class turret{
         public PIDController controller;
 
@@ -824,7 +387,7 @@ public class DecodeLibrary extends OpMode {
         public double f = 0;
         public DcMotorEx turret;
         public double current_angle;
-        public double limit = 160;
+        public double limit = 100;
         public double turret_angle;
         public double power;
         public boolean zero = false;
@@ -833,7 +396,6 @@ public class DecodeLibrary extends OpMode {
         public double manual_angle = 0;
         public Servo turret_servo_1;
         public Servo turret_servo_2;
-        public AnalogInput turret_servo_pos;
         public double turret_pos = 0;
         public double analog_offset = 0;
         public double servo_degrees = 90/.29;
@@ -842,44 +404,45 @@ public class DecodeLibrary extends OpMode {
         public double a_slow = 1.2;
         public double angle_mod = .9;
         public double target_angle = .5;
+        public boolean on_limit = false;
         public void initialize(){
             turret_servo_1 = hardwareMap.get(Servo.class, "turret_servo_1");
             turret_servo_2 = hardwareMap.get(Servo.class, "turret_servo_2");
-            turret_servo_pos = hardwareMap.get(AnalogInput.class, "turret_servo_pos");
+            turret_servo_1.setDirection(Servo.Direction.REVERSE);
+            turret_servo_2.setDirection(Servo.Direction.REVERSE);
         }
         public void turret_move(){
             dead_wheel_calculations();
             double x = follower.getPose().getX();
             double y = follower.getPose().getY();
-            if(color == 0) {
-                if (dead_distance * .0254 > 2.5 || x < y + 48 - 14.5 || x < -y + 48 - 14.5) {
-                    zero = true;
-                    manual_angle = 0;
-                }
-            }else{
-                if (dead_distance * .0254 > 2.5 || x < y + 48 - 14.5 || x < -y + 48 - 14.5) {
-                    zero = true;
-                    manual_angle = 0;
-                }
-            }
             if(zero){
                 target_angle = manual_angle / servo_degrees + .5;
             }else{
-                double angle = Math.toDegrees(follower.getHeading());
-                angle = dead_angle + angle;
+                double angle = Math.toDegrees(location.getHeading());
+                if (angle > 180) {
+                    angle = 360 - angle;
+                }else{
+                    angle *= -1;
+                }
+                angle = dead_angle - angle;
+                telemetry.addData("angle of turret", angle);
                 target_angle = (angle) / servo_degrees + .5;
             }
             zero = false;
             if((target_angle - .5) * servo_degrees > limit){
                 target_angle = (limit - 2) / servo_degrees + .5;
-            }else if((target_angle - .5) * servo_degrees < -limit + 60){
-                target_angle = (-limit + 60) / servo_degrees + .5;
+                on_limit = true;
+            }else if((target_angle - .5) * servo_degrees < -limit - 78){
+                target_angle = ((-limit - 78) + 2) / servo_degrees + .5;
+                on_limit = true;
+            }else{
+                on_limit = false;
             }
             if(manual_turret){
                 target_angle = .5;
             }
-            turret_servo_1.setPosition(target_angle - (4 / servo_degrees));
-            turret_servo_2.setPosition(target_angle - (4 / servo_degrees));
+            turret_servo_1.setPosition(target_angle - .001);
+            turret_servo_2.setPosition(target_angle + .001);
 
 
         }
@@ -889,15 +452,19 @@ public class DecodeLibrary extends OpMode {
     public static double y_mod = -12;
     public static double x_mod = 2;
     public static double speed_shoot = 40;
+    public Pose location = new Pose();
+    public double calc_angle = 0;
+    public double calc_distance = 0;
     public void dead_wheel_calculations(){
-        Pose location = new Pose();
         if(color == 0){
-            location = new Pose((130 + x_mod) - follower.getPose().getX(), (52.2 + y_mod) - follower.getPose().getY(), follower.getPose().getHeading());
+            location = new Pose((130 + x_mod) - (follower.getPose().getX() - 3 * sin(follower.getPose().getHeading() + Math.toRadians(180))), (52.2 + y_mod) - (follower.getPose().getY() + 3 * cos(follower.getPose().getHeading() + Math.toRadians(180))), follower.getPose().getHeading() + Math.toRadians(180));
 
         }else{
-            location = new Pose((130 + x_mod) - follower.getPose().getX(), (52.2 + y_mod) + follower.getPose().getY(), follower.getPose().getHeading());
+            location = new Pose((130 + x_mod) - (follower.getPose().getX() + 3 * sin(follower.getPose().getHeading() + Math.toRadians(180))), (52.2 + y_mod) + (follower.getPose().getY() - 3 * cos(follower.getPose().getHeading() + Math.toRadians(180))), follower.getPose().getHeading() + Math.toRadians(180));
 
         }
+        double old_angle = calc_angle;
+        double old_distance = calc_distance;
         if(location.getX() <= 0){
             dead_angle = 90;
         }else{
@@ -907,12 +474,17 @@ public class DecodeLibrary extends OpMode {
             dead_angle *= -1;
         }
         dead_distance = Math.sqrt(Math.pow(location.getX(), 2) + Math.pow(location.getY(), 2));
+        telemetry.addData("distance", dead_distance * .0254);
+        telemetry.addData("x", location.getX());
+        telemetry.addData("y", location.getY());
+        telemetry.addData("heading", follower.getPose().getHeading());
+
     }
     public static double spinpower = -.7;
     public class sensors{
         public DigitalChannel apin0;
         public DigitalChannel apin2;
-        public boolean auto_intake = false;
+        public boolean auto_outtake = false;
         public ElapsedTime intake_offset = new ElapsedTime();
         public ElapsedTime shoot_time_offset = new ElapsedTime();
         public RevColorSensorV3 colorfront1;
@@ -935,6 +507,8 @@ public class DecodeLibrary extends OpMode {
         public double sort_places = 0;
         public boolean start_shoot = false;
         Pose hold = null;
+        public boolean auto_shoot = false;
+        public boolean ball_in_intake = false;
         public void initialize(){
             apin0 = hardwareMap.get(DigitalChannel.class, "apin1");
             apin2 = hardwareMap.get(DigitalChannel.class, "apin3");
@@ -957,81 +531,88 @@ public class DecodeLibrary extends OpMode {
             front2 = colorfront2.getDistance(DistanceUnit.MM);
             back1 = colorback1.getDistance(DistanceUnit.MM);
             back2 = colorback2.getDistance(DistanceUnit.MM);
-            if((follower.getPose().getX() < 35 && balls.isEmpty()) || apin0.getState() || apin2.getState() || countfront.getState() || countback.getState() || ((colorfront() || colorback()) && balls.size() < 3)) {                if (balls.size() >= 3) {
-                    if(apin0.getState() || apin2.getState()|| countfront.getState() || countback.getState()) {
-                        if(!gamepad1.a && teleop && gamepad1.left_trigger < .4){
-                            intake.setPower(-.5);
-                        }
-                    }
-                } else {
-                    if(!gamepad1.a && gamepad1.left_trigger < .4) {
-                        intake.setPower(1);
-                    }
-                    if (apin0.getState()) {
-                        robot_going_forward = true;
-                    } else if(apin2.getState()){
-                        robot_going_forward = false;
-                    }
+            double x = follower.getPose().getX();
+            double y = follower.getPose().getY();
+            /*if(color == 0) {
+                if (dead_distance * .0254 < 2.5 && dead_distance * .0254 > 1.2 && x > y + 48 + 14.5 && x > -y + 48 - 14.5 && !turret.on_limit && abs(follower.getVelocity().getMagnitude()) < 30) {
+                    auto_shoot = true;
+                }else{
+                    auto_shoot = false;
                 }
             }else{
-                if(sorted || balls.size() < 3){
-                    intake.setPower(gamepad1.right_trigger);
+                if (dead_distance * .0254 < 2.5 && dead_distance * .0254 > 1.2 && x > y + 48 + 14.5 && x > -y + 48 - 14.5 && !turret.on_limit && abs(follower.getVelocity().getMagnitude()) < 30) {
+                    auto_shoot = true;
+                }else{
+                    auto_shoot = false;
                 }
-
             }
-            if(gamepad1.left_trigger > .4 && follower.getVelocity().getMagnitude() < 40){
+            if(auto_shoot && gamepad1.left_trigger < .4){
                 balls.clear();
                 shooter.last_shot = shooter.speed;
                 flippy_pos = flippy_up;
-                intake.setPower(0);
                 spindexer.setPower(spin_speed);
-                if (!start_shoot && follower.getVelocity().getMagnitude() < 10) {
-                    hold = follower.getPose();
-                    start_shoot = true;
+                if (apin0.getState()) {
+                    robot_going_forward = true;
+                    intake.setPower(1);
+                }else {
+                    intake.setPower(gamepad1.right_trigger);
                 }
-                if(freeze && follower.getVelocity().getMagnitude() < 10){
-                    follower.holdPoint(hold);
-                }
-            }else if(balls.size() >= 3){
+                start_shoot = true;
+
+            }else {*/
+            if (gamepad1.left_trigger > .4) {
+                balls.clear();
+                shooter.last_shot = shooter.speed;
+                flippy_pos = flippy_up;
+                spindexer.setPower(spin_speed);
+                start_shoot = true;
+
+            } else if (balls.size() >= 3) {
                 start_shoot = false;
+                intake.setPower(-.3);
                 sort();
-            }else{
+            } else {
+                if (apin0.getState()) {
+                    robot_going_forward = true;
+                    intake.setPower(1);
+                    spindexer.setPower(-1);
+                } else if (gamepad1.right_trigger > .2) {
+                    intake.setPower(gamepad1.right_trigger);
+                    spindexer.setPower(-gamepad1.right_trigger);
+                } else {
+                    if (colorfront() && balls.size() < 3) {
+                        spindexer.setPower(-1);
+                    } else {
+                        spindexer.setPower(0);
+                    }
+                    intake.setPower(gamepad1.right_trigger);
+                }
                 start_shoot = false;
                 sorted = false;
                 sort_step = 0;
                 moving_steps = 0;
-                if(robot_going_forward){
-                    if(colorfront() && balls.size() < 3){
-                        spindexer.setPower(spinpower);
-                    }else{
-                        spindexer.setPower(-gamepad1.right_trigger);
-                    }
-                }else{
-                    if(colorback() && balls.size() < 3){
-                        spindexer.setPower(spinpower);
-                    }else{
-                        spindexer.setPower(-gamepad1.right_trigger);
-                    }
-                }
-                flippy_pos = flippy_down;
+                flippy_pos = flippy_hold;
             }
+
 
         }
+        public ElapsedTime spit_time = new ElapsedTime();
+        public boolean init_count = true;
         public void count(){
-            if(!first_count && balls.size() > 0){
-                balls.clear();
-                first_count = true;
+            if(init_count){
+                spit_time.reset();
+                init_count = false;
+            }else {
+                if (!colorfront()) {
+                    spit_time.reset();
+                } else if (spit_time.milliseconds() > 400) {
+                    balls.clear();
+                    gamepad1.rumble(500);
+                    balls.add(1.0);
+                    balls.add(1.0);
+                    balls.add(1.0);
+                }
             }
-            if(countfront.getState() || countback.getState()){
-                ball_counted = 0;
-            }else if(!countfront.getState() && !countback.getState() && ball_counted == 0){
-                ball_counted = 1;
-                intake_offset.reset();
-            } else if(ball_counted == 1 && intake_offset.milliseconds() > 25){
-                ball_counted = 2;
-                balls.add(1.0);
-            }
-
         }
         public void sort(){
             if(!sorted){
@@ -1153,6 +734,21 @@ public class DecodeLibrary extends OpMode {
         public void auto_index(){
 
         }
+        public boolean last_time(){
+            if(gamepad1.left_trigger < .4 || colorfront()){
+                sensed = false;
+            }
+            if(!colorfront() && !sensed){
+                sensed = true;
+                shoot_time_offset.reset();
+            }
+            if(sensed && shoot_time_offset.milliseconds() > shot_time){
+                return true;
+            }else{
+                return false;
+            }
+
+        }
         public boolean firstisgreen(){
             if(front1 < front2){
                 if(colorfront1.getNormalizedColors().green > colorfront1.getNormalizedColors().blue){
@@ -1169,21 +765,6 @@ public class DecodeLibrary extends OpMode {
             }
         }
         public boolean sensed = false;
-        public boolean last_time(){
-            if(gamepad1.left_trigger < .4 || colorfront()){
-                sensed = false;
-            }
-            if(!colorfront() && !sensed){
-                sensed = true;
-                shoot_time_offset.reset();
-            }
-            if(sensed && shoot_time_offset.milliseconds() > shot_time){
-                return true;
-            }else{
-                return false;
-            }
-
-        }
         public boolean lastisgreen(){
             if(back1 < back2){
                 if(colorback1.getNormalizedColors().green > colorback1.getNormalizedColors().blue){

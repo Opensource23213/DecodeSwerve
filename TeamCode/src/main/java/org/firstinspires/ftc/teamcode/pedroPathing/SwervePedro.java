@@ -46,6 +46,7 @@ public class SwervePedro extends Drivetrain {
     public boolean stop_and_point = false;
     public double angle = 0;
     public Gamepad gamepad1;
+    public double color = 0;
 
     /**
      * This creates a new Mecanum, which takes in various movement vectors and outputs
@@ -55,9 +56,10 @@ public class SwervePedro extends Drivetrain {
      * @param hardwareMap      this is the HardwareMap object that contains the motors and other hardware
      * @param mecanumConstants this is the MecanumConstants object that contains the names of the motors and directions etc.
      */
-    public SwervePedro(HardwareMap hardwareMap, MecanumConstants mecanumConstants, Gamepad gamepad) {
+    public SwervePedro(HardwareMap hardwareMap, MecanumConstants mecanumConstants, Gamepad gamepad, double color1) {
         constants = mecanumConstants;
         teleop = false;
+        color = color1;
         gamepad1 = gamepad;
         this.maxPowerScaling = mecanumConstants.maxPower;
         this.motorCachingThreshold = mecanumConstants.motorCachingThreshold;
@@ -172,7 +174,6 @@ public class SwervePedro extends Drivetrain {
         wheelPowers[1] = (mecanumVectorsCopy[0].getXComponent() * truePathingVectors[0].getYComponent() - truePathingVectors[0].getXComponent() * mecanumVectorsCopy[0].getYComponent()) / (mecanumVectorsCopy[0].getXComponent() * mecanumVectorsCopy[1].getYComponent() - mecanumVectorsCopy[1].getXComponent() * mecanumVectorsCopy[0].getYComponent());
         wheelPowers[2] = (mecanumVectorsCopy[3].getXComponent() * truePathingVectors[1].getYComponent() - truePathingVectors[1].getXComponent() * mecanumVectorsCopy[3].getYComponent()) / (mecanumVectorsCopy[3].getXComponent() * mecanumVectorsCopy[2].getYComponent() - mecanumVectorsCopy[2].getXComponent() * mecanumVectorsCopy[3].getYComponent());
         wheelPowers[3] = (mecanumVectorsCopy[2].getXComponent() * truePathingVectors[1].getYComponent() - truePathingVectors[1].getXComponent() * mecanumVectorsCopy[2].getYComponent()) / (mecanumVectorsCopy[2].getXComponent() * mecanumVectorsCopy[3].getYComponent() - mecanumVectorsCopy[3].getXComponent() * mecanumVectorsCopy[2].getYComponent());
-
         if (voltageCompensation) {
             double voltageNormalized = getVoltageNormalized();
             for (int i = 0; i < wheelPowers.length; i++) {
@@ -212,7 +213,7 @@ public class SwervePedro extends Drivetrain {
      */
     private void setMotorsToFloat() {
         for (DcMotorEx motor : motors) {
-            motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         }
     }
 
@@ -227,6 +228,7 @@ public class SwervePedro extends Drivetrain {
         chassis.rr.pod1servo.setPower(0);
         //setMotorsToFloat();
     }
+    public static double angle_offset = 360;
 
     public void runDrive(double[] doubles) {
         if(x_out){
@@ -239,10 +241,16 @@ public class SwervePedro extends Drivetrain {
                 if(real_angle < 0){
                     real_angle = abs(real_angle);
                 }else{
-                    real_angle = 360 - real_angle;
+                    real_angle = angle_offset - real_angle;
                 }
-                real_angle -= 90;
-                if(real_angle < 0){
+                if(color == 0) {
+                    real_angle += 90;
+                }else{
+                    real_angle -= 90;
+                }
+                if(real_angle > 360){
+                    real_angle -= 360;
+                }else if(real_angle < 0){
                     real_angle += 360;
                 }
                 real_angle = Math.toRadians(real_angle);
@@ -269,11 +277,7 @@ public class SwervePedro extends Drivetrain {
     @Override
     public void startTeleopDrive(boolean brakeMode) {
         teleop = true;
-        if (brakeMode) {
-            setMotorsToBrake();
-        } else {
-            setMotorsToFloat();
-        }
+        setMotorsToBrake();
     }
 
     public void getAndRunDrivePowers(Vector correctivePower, Vector headingPower, Vector pathingPower, double robotHeading) {
@@ -326,13 +330,13 @@ public class SwervePedro extends Drivetrain {
 
 
 
-    public static double fr_offset = -400;
-    public static double fl_offset = 1410;
-    public static double rr_offset = 1000;
-    public static double rl_offset = 100;
-    public double p = .001, i = 0, d = .00004;
+    public static double fr_offset = -70;
+    public static double fl_offset = 180;
+    public static double rr_offset = 400;
+    public static double rl_offset = 1100;
+    public static double p = 0.00055, i = 0, d = .0000001 ;
 
-    public double f = 0.1;
+    public static double f = 0.005;
     public static double degree_offset = 0;
     public static double change = 150;
 
@@ -412,18 +416,18 @@ public class SwervePedro extends Drivetrain {
                 double pid = controller.calculate(wheel_pos, target);
                 double ff = Math.cos(Math.toRadians(target)) * f;
                 power = pid + ff;
+
                 if (inversion == 1) {
                     pod1servo.setPower(-power);
                 } else {
                     pod1servo.setPower(power);
                 }
-                if(!stop_and_point) {
-                    if (teleop) {
-                        wheel.setPower(wheel_power);
-                    } else {
-                        wheel.setPower(wheel_power / (abs(target - wheel_pos) / change));
-                    }
+                if (teleop) {
+                    wheel.setPower(wheel_power);
+                } else {
+                    wheel.setPower(wheel_power / (abs(target - wheel_pos) / change));
                 }
+
             }
         }
         public void zero(){
@@ -493,6 +497,7 @@ public class SwervePedro extends Drivetrain {
             if (rla < 0) {
                 rla += 360;
             }
+
             fr.position = fra;
             fr.wheel_power = frs;
             fl.position = fla;
@@ -501,10 +506,17 @@ public class SwervePedro extends Drivetrain {
             rr.wheel_power = rrs;
             rl.position = rla;
             rl.wheel_power = rls;
+            if(stop_and_point){
+                fr.wheel_power = 0;
+                fl.wheel_power = 0;
+                rr.wheel_power = 0;
+                rl.wheel_power = 0;
+            }
             fr.move(fr_offset, 1);
             fl.move(fl_offset, 1);
             rr.move(rr_offset, 1);
             rl.move(rl_offset, 1);
+
         }
 
     }

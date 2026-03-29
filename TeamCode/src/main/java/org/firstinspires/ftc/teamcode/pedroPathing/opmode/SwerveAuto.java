@@ -48,15 +48,14 @@ public class SwerveAuto extends DecodeLibrary {
         y_mod = -12;
         color = 0;
         timer = new ElapsedTime();
-        follower = SwerveConst.createFollower(hardwareMap, gamepad1);
+        follower = SwerveConst.createFollower(hardwareMap, gamepad1, color);
         follower.setPose(new Pose(0,-.375,Math.toRadians(90)));
         intake = hardwareMap.get(DcMotorEx.class, "intake");
         spindexer = hardwareMap.get(DcMotorEx.class, "spindexer");
-        flippy = hardwareMap.get(Servo.class, "flippy");
+        //flippy = hardwareMap.get(Servo.class, "flippy");
         spindexer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
         shooter.initialize();
-        turret.initialize();
         blue_init();
         follower.followPath(first_shoot);
     }
@@ -75,7 +74,6 @@ public class SwerveAuto extends DecodeLibrary {
         intake.setPower(-1);
         flippy.setPosition(.45);
         shooter.shooting();
-        turret.turret_move();
         if(follower.atParametricEnd() || !follower.isBusy() || follower.drivetrain.yVelocity() == 1 || steps == 2) {
             if (forward == 0) {
                 if (steps == 0) {
@@ -145,7 +143,7 @@ public class SwerveAuto extends DecodeLibrary {
         gate.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(180));
         second_shoot = new Path(new BezierCurve(gate.getLastControlPoint(), new Pose(56, 15), new Pose(72, 4)));
         second_shoot.setLinearHeadingInterpolation(Math.toRadians(180),Math.toRadians(45));
-        second_pick = new Path(new BezierLine(second_shoot.getLastControlPoint(), new Pose(79, 33.5)));
+        second_pick = new Path(new BezierLine(second_shoot.getLastControlPoint(), new Pose(79, 30.5)));
         second_pick.setConstantHeadingInterpolation(Math.toRadians(90));
         third_shoot = new Path(new BezierLine(second_pick.getLastControlPoint(), new Pose(72, 4)));
         third_shoot.setConstantHeadingInterpolation(Math.toRadians(90));

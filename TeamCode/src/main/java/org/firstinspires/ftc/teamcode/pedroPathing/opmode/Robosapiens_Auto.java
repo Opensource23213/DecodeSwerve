@@ -42,7 +42,6 @@ public class Robosapiens_Auto extends DecodeLibrary{
         color = 1;
         teleop = false;
         initialize();
-        drive_init_auto();
         cameraCode.limelight.pipelineSwitch(6);
         if(color == 0) {
             follower.setPose(new Pose(122,25));

@@ -19,7 +19,6 @@ public class IntakeTest extends DecodeLibrary {
     @Override
     public void init(){
         initialize();
-        drive_init();
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
     }
     @Override
@@ -40,7 +39,6 @@ public class IntakeTest extends DecodeLibrary {
             downpress = false;
         }
         intake.setPower(test_speed);
-        rear_right.setPower(test_speed);
         telemetry.addData("Speed", test_speed);
         telemetry.addData("Current", intake.getCurrent(CurrentUnit.AMPS));
         telemetry.update();

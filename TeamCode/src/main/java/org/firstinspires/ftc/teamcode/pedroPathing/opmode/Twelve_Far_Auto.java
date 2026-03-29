@@ -43,7 +43,6 @@ public class Twelve_Far_Auto extends DecodeLibrary{
         color = 1;
         teleop = false;
         initialize();
-        drive_init_auto();
         cameraCode.limelight.pipelineSwitch(6);
         if(color == 0) {
             blue_init();

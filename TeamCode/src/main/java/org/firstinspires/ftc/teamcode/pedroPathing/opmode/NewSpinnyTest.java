@@ -21,7 +21,6 @@ public class NewSpinnyTest extends DecodeLibrary {
     @Override
     public void init(){
         follower = Constants.createFollower(hardwareMap);
-        drive_init();
         sensors.initialize();
         intake = hardwareMap.get(DcMotorEx.class, "intake");
         shooter.initialize();

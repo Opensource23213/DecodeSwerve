@@ -30,14 +30,14 @@ public class ExampleTeleOp extends DecodeLibrary {
         x_mod = -3;
         y_mod = 3;
         color = 1;
-        follower = SwerveConst.createFollower(hardwareMap, gamepad1);
+        follower = SwerveConst.createFollower(hardwareMap, gamepad1, color);
         follower.setPose(new Pose(0,0, Math.toRadians(-90)));
         shooter.initialize();
-        turret.initialize();
+        //turret.initialize();
         motor = hardwareMap.get(DcMotor.class, "intake");
         motor.setDirection(DcMotorSimple.Direction.REVERSE);
         motor2 = hardwareMap.get(DcMotor.class, "spindexer");
-        servo1 = hardwareMap.get(Servo.class, "flippy");
+        //servo1 = hardwareMap.get(Servo.class, "flippy");
         follower.update();
     }
 
@@ -58,7 +58,7 @@ public class ExampleTeleOp extends DecodeLibrary {
         robot_heading = follower.getPose().getHeading();
         shooter.speed = shoot_multiplier * ((dead_distance * .0254) - 1.6) + shoot_power_offset;
         shooter.shooting();
-        turret.turret_move();
+        //turret.turret_move();
         double mod = (abs(gamepad1.left_stick_y + gamepad1.left_stick_x) * turn_divider);
         if(mod < 1){
             mod = 1;
@@ -82,10 +82,10 @@ public class ExampleTeleOp extends DecodeLibrary {
             motor2.setPower(0);
         }
         if(time.milliseconds() > oscilation_time * 2){
-            servo1.setPosition(test_pos + oscillation);
+            // servo1.setPosition(test_pos + oscillation);
             time.reset();
         }else if(time.milliseconds() > oscilation_time){
-            servo1.setPosition(test_pos);
+            //servo1.setPosition(test_pos);
         }
 
 

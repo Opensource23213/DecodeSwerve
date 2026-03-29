@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.pedroPathing.opmode;
 
+import static java.lang.Math.abs;
+
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
@@ -11,8 +13,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 
-@Autonomous(name="Hive_Auto", group="ABC Opmode", preselectTeleOp = "DecodeTeleop")
-public class Hive_auto extends DecodeLibrary{
+@Autonomous(name="Near_Auto", group="ABC Opmode", preselectTeleOp = "DecodeTeleop")
+public class Near_Auto extends DecodeLibrary{
     public double forward = 0.25;
     public Path first_pick;
     public Path pick_after_stuff;
@@ -36,30 +38,31 @@ public class Hive_auto extends DecodeLibrary{
     public double old_color = 1;
     public boolean shooting = false;
     public double index_steps = 0;
-    public double add = 0;
+    public boolean re_init = false;
+    public Path nextPath = new Path();
+    public boolean second_dump = false;
     @Override
     public void init(){
         color = 1;
         teleop = false;
-        if(color == 1){
-            auto_pose = new Pose(0,.375, Math.toRadians(-90));
-        }else{
-            auto_pose = new Pose(0,-.375, Math.toRadians(90));
-        }
         initialize();
-        follower.setPose(auto_pose);
         cameraCode.limelight.pipelineSwitch(6);
         if(color == 0) {
+            follower.setPose(new Pose(122,25 - .375, Math.toRadians(180)));
             blue_init();
             angle_offset = -90;
+            old_color = 0;
         }else{
+            follower.setPose(new Pose(122,-25, Math.toRadians(-180)));
             red_init();
             angle_offset = 90;
+            old_color = 1;
         }
         tele_offset = turret.current_angle;
         pattern = 2;
         follower.setMaxPower(1);
         follower.setMaxPowerScaling(1);
+        follower.followPath(first_shoot);
         sorting.sorted = true;
         turret.manual_angle = 0;
     }
@@ -70,58 +73,61 @@ public class Hive_auto extends DecodeLibrary{
         }
         follower.drivetrain.setYVelocity(0);
         follower.update();
-        if(gamepad1.right_bumper) {
-            turret.manual_angle = 90;
-            /*Auto_power = 2160;
-            Auto_angle = 0;*/
-            color = 0;
-        }else if(gamepad1.left_bumper){
-            color = 1;
-            /*Auto_power = 2290;
-            Auto_angle = 0;*/
-            turret.manual_angle = -90;
+        cameraCode.camera_calculations();
+        turret.turret_move();
+        if (cameraCode.limelight.getLatestResult().getPipelineIndex() != 6) {
+            cameraCode.limelight.pipelineSwitch(6);
         }
         turret.zero = true;
-        turret.turret_move();
-        sorting.sort_balls = true;
-        cameraCode.camera_calculations();
-        if(cameraCode.result.isValid()) {
-            if (cameraCode.result.getFiducialResults().get(0).getFiducialId() == 23) {
-                pattern = 3;
-            } else if (cameraCode.result.getFiducialResults().get(0).getFiducialId() == 21) {
-                pattern = 1;
-            }else if(cameraCode.result.getFiducialResults().get(0).getFiducialId() == 22){
-                pattern = 2;
+        if (color == 0) {
+            turret.manual_angle = 54;
+        } else {
+            turret.manual_angle = -50;
+        }
+        if(gamepad1.a){
+            color = 1;
+            re_init = true;
+        }else if(gamepad1.b){
+            color = 0;
+            re_init = true;
+        }
+
+        if (cameraCode.result.isValid()) {
+            if (color == 0) {
+                if (cameraCode.result.getFiducialResults().get(0).getFiducialId() == 21) {
+                    pattern = 3;
+                } else if (cameraCode.result.getFiducialResults().get(0).getFiducialId() == 22) {
+                    pattern = 1;
+                } else if(cameraCode.result.getFiducialResults().get(0).getFiducialId() == 23){
+                    pattern = 2;
+                }
+            } else {
+                if (cameraCode.result.getFiducialResults().get(0).getFiducialId() == 22) {
+                    pattern = 3;
+                } else if (cameraCode.result.getFiducialResults().get(0).getFiducialId() == 23) {
+                    pattern = 1;
+                } else if(cameraCode.result.getFiducialResults().get(0).getFiducialId() == 21){
+                    pattern = 2;
+                }
             }
         }
-        if(old_color != color || gamepad1.a) {
+        if(old_color != color || re_init) {
+            re_init = false;
             initialize();
-            if(color == 1){
-                auto_pose = new Pose(0,.375, Math.toRadians(-90));
-            }else{
-                auto_pose = new Pose(0,-.375, Math.toRadians(90));
-            }
-            follower.setMaxPower(1);
-            follower.setMaxPowerScaling(1);
-            follower.setPose(auto_pose);
             cameraCode.limelight.pipelineSwitch(6);
             if (color == 0) {
+                follower.setPose(new Pose(122,25 - .375, Math.toRadians(180)));
                 blue_init();
                 angle_offset = -90;
                 old_color = 0;
             } else {
+                follower.setPose(new Pose(122,-24, Math.toRadians(-180)));
                 red_init();
                 angle_offset = 90;
                 old_color = 1;
             }
+            follower.followPath(first_shoot);
         }
-        flippy.setPosition(flippy_up);
-        auto_pose = follower.getPose();
-        telemetry.addData("color", color);
-        telemetry.addData("pattern", pattern);
-        telemetry.addData("X", follower.getPose().getX());
-        telemetry.addData("Y", follower.getPose().getY());
-        telemetry.update();
     }
 
     @Override
@@ -133,106 +139,159 @@ public class Hive_auto extends DecodeLibrary{
         auto_pose = follower.getPose();
         flippy.setPosition(flippy_pos);
         shooter.shooting();
+        turret.zero = true;
+        turret.manual_angle = 90;
         turret.turret_move();
         sorting.sort();
         shoot();
-        sorting.spit_out();
-        sorting.sorted = true;
-        if (forward == .25) {
-            shoot();
-            shooting = true;
-            if (steps == 2) {
-                shooting = false;
-                flippy_pos = flippy_hold;
-                spindexer.setPower(-1);
-                intake.setPower(1);
-                follower.followPath(first_pick);
-                if(color == 1) {
-                    first_pick = new Path(new BezierCurve(new Pose(5, -6), new Pose(.5, -48)));
-                    first_pick.setConstantHeadingInterpolation(Math.toRadians(-90));
-                }else{
-                    first_pick = new Path(new BezierCurve(new Pose(5, 6), new Pose(.5,  48)));
-                    first_pick.setConstantHeadingInterpolation(Math.toRadians(90));
+        if(follower.atParametricEnd() || !follower.isBusy() || follower.isRobotStuck() || close(follower.getPose(), follower.getCurrentPath()) || steps == 2 || (follower.getCurrentPath() == gate && abs(follower.getPose().getY()) > abs(gate.getLastControlPoint().getY()) - error)) {
+            if(forward == .25){
+                shooting = true;
+                nextPath = first_pick;
+                shoot();
+                intake.setPower(0);
+                if(steps == 2) {
+                    shooting = false;
+                    spindexer.setPower(-1);
+                    intake.setPower(1);
+                    forward = .5;
+                    steps = 0;
                 }
-                forward = 1;
-                steps = 0;
             }
-        }else {
-            if (follower.atParametricEnd() || !follower.isBusy() || follower.isRobotStuck()) {
-                if (forward == .5) {
-                    shooting = true;
-                    shoot();
-                    if (steps == 2) {
-                        shooting = false;
-                        flippy_pos = flippy_hold;
-                        spindexer.setPower(-1);
-                        intake.setPower(1);
-                        first_pick.init();
-                        follower.followPath(first_pick);
-                        forward = 1;
-                        steps = 0;
-                    }
-                } else if (forward == 1) {
-                    if (steps == 0) {
-                        gate_open.reset();
-                        follower.breakFollowing();
-                        steps = 1;
-                    }if (steps == 1 && gate_open.milliseconds() > 0) {
-                        second_shoot.init();
-                        follower.followPath(second_shoot);
-                        forward = .5;
-                        steps = 0;
-                    }
+            else if(forward == .5){
+                follower.followPath(second_shoot);
+                forward = 1;
+            }
+            else  if(forward == 1){
+                shooting = true;
+                nextPath = second_pick;
+                shoot();
+                intake.setPower(0);
+                if(steps == 2) {
+                    shooting = false;
+                    spindexer.setPower(-1);
+                    intake.setPower(1);
+                    follower.followPath(second_pick);
+                    forward = 2;
+                    steps = 0;
+                }
+            }
+            else if(forward == 2){
+                follower.followPath(third_shoot);
+                forward = 3;
+            }else if(forward == 3){
+                shooting = true;
+                nextPath = third_pick;
+                shoot();
+                intake.setPower(0);
+                if(steps == 2) {
+                    shooting = false;
+                    spindexer.setPower(-1);
+                    intake.setPower(1);
+                    follower.followPath(gate);
+                    forward = 4;
+                    steps = 0;
+                }
+            }else if(forward == 4){
+                follower.followPath(third_pick);
+                forward = 4.5;
+            }
+            else if(forward == 4.5){
+                follower.followPath(fourth_shoot);
+                second_dump = false;
+                forward = 5;
+            }
+            else if(forward == 5){
+                shooting = true;
+                nextPath = pick_after_stuff;
+                shoot();
+                intake.setPower(0);
+                if(steps == 2) {
+                    shooting = false;
+                    spindexer.setPower(-1);
+                    intake.setPower(1);
+                    forward = 6;
+                    steps = 0;
+                }
+            }else if(forward == 6){
+                follower.followPath(fifth_shoot);
+                forward = 7;
+            }else if(forward == 7){
+                if(!shooting){
+                    pick_after_stuff = new Path(new BezierCurve(fourth_shoot.getLastControlPoint(), new Pose(2, -42)));
+                    pick_after_stuff.setConstantHeadingInterpolation(Math.toRadians(-155));
+                    fifth_shoot = new Path(new BezierLine(third_pick.getLastControlPoint(), fourth_shoot.getLastControlPoint()));
+                    fifth_shoot.setConstantHeadingInterpolation(Math.toRadians(-155));
+
+                }
+                shooting = true;
+                nextPath = pick_after_stuff;
+                shoot();
+                intake.setPower(0);
+                if(steps == 2) {
+                    shooting = false;
+                    spindexer.setPower(-1);
+                    intake.setPower(1);
+                    forward = 6;
+                    steps = 0;
                 }
             }
         }
     }
 
     public void red_init(){
-        first_pick = new Path(new BezierCurve(new Pose(0,.375), new Pose(.5, -52)));
-        first_pick.setConstantHeadingInterpolation(Math.toRadians(-90));
-        second_shoot = new Path(new BezierCurve(new Pose(.5,-51 ), new Pose(5, -6)));
-        second_shoot.setConstantHeadingInterpolation(Math.toRadians(-90));
-
+        first_shoot = new Path(new BezierLine(new Pose(123,-24), new Pose(100, -32)));
+        first_shoot.setConstantHeadingInterpolation(Math.toRadians(-180));
+        first_pick = new Path(new BezierLine(first_shoot.getLastControlPoint(), new Pose(74, -32)));
+        first_pick.setConstantHeadingInterpolation(Math.toRadians(-180));
+        second_shoot = new Path(new BezierLine(first_pick.getLastControlPoint(), new Pose(86, -32)));
+        second_shoot.setConstantHeadingInterpolation(Math.toRadians(-180));
+        second_pick = new Path(new BezierLine(second_shoot.getLastControlPoint(), new Pose(54, -32)));
+        second_pick.setConstantHeadingInterpolation(Math.toRadians(-180));
+        third_shoot = new Path(new BezierLine(second_pick.getLastControlPoint(), second_shoot.getLastControlPoint()));
+        third_shoot.setConstantHeadingInterpolation(Math.toRadians(-180));
+        gate = new Path(new BezierCurve(third_shoot.getLastControlPoint(), new Pose(62, -32), new Pose(60, -39)));
+        gate.setConstantHeadingInterpolation(Math.toRadians(-180));
+        third_pick = new Path(new BezierLine(new Pose(43, -32), new Pose(33, -32)));
+        third_pick.setConstantHeadingInterpolation(Math.toRadians(-180));
+        fourth_shoot = new Path(new BezierLine(third_pick.getLastControlPoint(), new Pose(70, -9)));
+        fourth_shoot.setConstantHeadingInterpolation(Math.toRadians(-180));
+        pick_after_stuff = new Path(new BezierCurve(fourth_shoot.getLastControlPoint(), new Pose(63, -38), new Pose(61, -38), new Pose(2, -42)));
+        pick_after_stuff.setConstantHeadingInterpolation(Math.toRadians(-180));
+        fifth_shoot = new Path(new BezierLine(third_pick.getLastControlPoint(), fourth_shoot.getLastControlPoint()));
+        fifth_shoot.setConstantHeadingInterpolation(Math.toRadians(-180));
+        park = new Path(new BezierLine(fourth_shoot.getLastControlPoint(), new Pose(fourth_shoot.getLastControlPoint().getX(), fourth_shoot.getLastControlPoint().getY() + .1)));
+        park.setConstantHeadingInterpolation(Math.toRadians(-155));
     }
     public void blue_init(){
-        first_pick = new Path(new BezierCurve(new Pose(0,-.375), new Pose(.5, 52)));
-        first_pick.setConstantHeadingInterpolation(Math.toRadians(90));
-        second_shoot = new Path(new BezierCurve(new Pose(.5,51 ), new Pose(5, 6)));
-        second_shoot.setConstantHeadingInterpolation(Math.toRadians(90));
+        first_shoot = new Path(new BezierLine(new Pose(123,-24), new Pose(100, -44)));
+        first_shoot.setConstantHeadingInterpolation(-180);
     }
     public void shoot(){
         if(shooting){
-            follower.drivetrain.setYVelocity(0);
-            if(steps == 0 /*&& shooter.shoot1.getVelocity() > Auto_power*/){
-                shooting_time.reset();
-                steps = .5;
-            }else if(steps == .5 && shooting_time.milliseconds() > 400){
+            if(steps == 0){
+                follower.followPath(nextPath);
                 shooting_time.reset();
                 steps = 1;
                 spindexer.setPower(1);
                 flippy_pos = flippy_up;
-            }else if(steps == 1 && shooting_time.milliseconds() > 850){
-                if((sorting.colorfront() || sorting.colorback())){
-                    shooting_time.reset();
-                }else {
-                    steps = 2;
-                    sorting.sorted = false;
-                    sorting.sort_balls = false;
-                }
+            }else if(steps == 1 && shooting_time.milliseconds() > 900){
+                steps = 2;
+                sorting.sorted = false;
+                sorting.sort_balls = false;
             }
+            follower.drivetrain.setYVelocity(0);
+            intake.setPower(-.4);
         }
+    }
+    public static double error = 2;
+    public boolean close(Pose robot, Path path){
+        boolean x_correct = abs(path.getLastControlPoint().getX() - robot.getX()) < error;
+        boolean y_correct = abs(path.getLastControlPoint().getY() - robot.getY()) < error;
+        return x_correct && y_correct;
     }
 
     public class sorting {
-        public ElapsedTime spit_time = new ElapsedTime();
-        public void spit_out(){
-            if(!colorback() || !colorfront()){
-                spit_time.reset();
-            }else if(spit_time.milliseconds() > 400){
-                intake.setPower(-.4);
-            }
-        }
         public boolean colorfront() {
             front1 = sensors.colorfront1.getDistance(DistanceUnit.MM);
             front2 = sensors.colorfront2.getDistance(DistanceUnit.MM);

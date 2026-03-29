@@ -9,11 +9,10 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.I2cDeviceSynchSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-@Disabled
 @Config
 @TeleOp(name="sensorcalibrate", group="Calibrate")
 public class sensortest extends LinearOpMode {
-    public static int range = 300;
+    public static int range = 70;
     @Override
 
     public void runOpMode() throws InterruptedException {
@@ -30,14 +29,14 @@ public class sensortest extends LinearOpMode {
         crf.setPin1Digital(ColorRangefinder.DigitalMode.DISTANCE, 0, 30); // green
            */
 
-        LaserRangefinder lrf = new LaserRangefinder(hardwareMap.get(RevColorSensorV3.class, "colorfront1"));
+        LaserRangefinder lrf = new LaserRangefinder(hardwareMap.get(RevColorSensorV3.class, "flapsensefront"));
         lrf.setI2CAddress(0x52);
         waitForStart();
         lrf.getROI();
         lrf.getPin0Mode();
-        lrf.setDistanceMode(LaserRangefinder.DistanceMode.SHORT);
+        lrf.setDistanceMode(LaserRangefinder.DistanceMode.MEDIUM);
         lrf.setTiming(10,0);
-        lrf.setPin0Digital(0, 75);
+        lrf.setPin0Digital(0, 35);
         lrf.setPin1Digital(0, range);
         lrf.getScanDistance(DistanceUnit.MM);
         telemetry.addData("", lrf.getStatus());
